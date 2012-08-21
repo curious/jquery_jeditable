@@ -15,7 +15,7 @@
  */
 
 /**
-  * Version 1.7.2-dev
+  * Version 1.7.2-dev (+curious changes)
   *
   * ** means there is basic unit tests for this parameter. 
   *
@@ -49,6 +49,10 @@
   * @param String  options[placeholder] Placeholder text or html to insert when element is empty. **
   * @param String  options[onblur]    'cancel', 'submit', 'ignore' or function ??
   *             
+  * @param String  options[minWidth]  Minimum width in pixels - Currently only implemented for 'text'
+  * @param String  options[maxWidth]  Maximum width in pixels - Currently only implemented for 'text'
+  * @param String  options[encodeHTML] Encode angle brackets and other dangerous characters
+  *             
   * @param Function options[onsubmit] function(settings, original) { ... } called before submit
   * @param Function options[onreset]  function(settings, original) { ... } called before reset
   * @param Function options[onerror]  function(settings, original, xhr) { ... } called on error
@@ -58,6 +62,14 @@
   */
 
 (function($) {
+
+    function encodeHTML (str) {
+      return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function decodeHTML (str) {
+      return String(str).replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+    }
 
     $.fn.editable = function(target, options) {
             
@@ -308,7 +320,11 @@
 
                           /* Check if given target is function */
                           if ($.isFunction(settings.target)) {
-                              var str = settings.target.apply(self, [input.val(), settings]);
+                              var str = input.val();
+                              if (settings.encodeHTML) {
+                                str = encodeHTML(str);
+                              }
+                              str = settings.target.apply(self, [str, settings]);
                               $(self).html(str);
                               self.editing = false;
                               callback.apply(self, [self.innerHTML, settings]);
@@ -317,13 +333,17 @@
                                   $(self).html(settings.placeholder);
                               }
                           } else {
-                              /* Add edited content and id of edited element to POST. */
+                              /* Add edited content and id of edited element to POST */
+                              var str = input.val();
+                              if (settings.encodeHTML) {
+                                str = encodeHTML(str);
+                              }
                               var submitdata = {};
-                              submitdata[settings.name] = input.val();
+                              submitdata[settings.name] = str;
                               submitdata[settings.id] = self.id;
                               /* Add extra data to be POST:ed. */
                               if ($.isFunction(settings.submitdata)) {
-                                  $.extend(submitdata, settings.submitdata.apply(self, [self.revert, settings]));
+                                  $.extend(submitdata, settings.submitdata.apply(encodeHTML(self.innerHTML), [self.revert, settings]));
                               } else {
                                   $.extend(submitdata, settings.submitdata);
                               }
@@ -404,6 +424,9 @@
                     return(input);
                 },
                 content : function(string, settings, original) {
+                  if (settings.encodeHTML) {
+                    string = decodeHTML(string);
+                  }
                     $(':input:first', this).val(string);
                 },
                 reset : function(settings, original) {
@@ -452,8 +475,14 @@
             text: {
                 element : function(settings, original) {
                     var input = $('<input />');
-                    if (settings.width  != 'none') { input.attr('width', settings.width);  }
-                    if (settings.height != 'none') { input.attr('height', settings.height); }
+                    if (settings.width  != 'none') {
+                      minw = settings.minWidth ? settings.minWidth : 0;
+                      maxw = settings.maxWidth ? settings.maxWidth : 500000;
+                      w = Math.max(minw,settings.width);
+                      w = Math.min(maxw, w);
+                      input.width(w);  
+                    }
+                    if (settings.height != 'none') { input.height(settings.height); }
                     /* https://bugzilla.mozilla.org/show_bug.cgi?id=236791 */
                     //input[0].setAttribute('autocomplete','off');
                     input.attr('autocomplete','off');
